@@ -13,13 +13,6 @@ const POSICIONES_POR_CATEGORIA = {
   DEL: ['DC', 'MP', 'EXI', 'EXD']
 };
 
-const POSICIONES = [
-  { categoria: 'Portero', opciones: ['POR'] },
-  { categoria: 'Defensas', opciones: ['DFC', 'LD', 'LI', 'DFCI', 'DFCD'] },
-  { categoria: 'Medios', opciones: ['MI', 'MD', 'MC', 'MCO', 'MCD'] },
-  { categoria: 'Delanteros', opciones: ['DC', 'MP', 'EXI', 'EXD'] }
-];
-
 const estadoInicialJugador = {
   id: null,
   name: '',
@@ -80,7 +73,7 @@ const fichasInicialesLibres = [
 ];
 
 export default function App() {
-  const [currentUserRole, setCurrentUserRole] = useState(null); // 'captain' | player_id | null
+  const [currentUserRole, setCurrentUserRole] = useState(null);
   const [activeTab, setActiveTab] = useState('inicio');
   const [club, setClub] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -112,14 +105,15 @@ export default function App() {
   // Táctica
   const [selectedFormation, setSelectedFormation] = useState('fut7-1321');
   const [useFreeBoard, setUseFreeBoard] = useState(false);
+  const [onlyConfirmedInBoard, setOnlyConfirmedInBoard] = useState(true);
   const [lineupAssigned, setLineupAssigned] = useState({});
   const [customTokens, setCustomTokens] = useState(fichasInicialesLibres);
   const [newCustomCategory, setNewCustomCategory] = useState('MED');
   const [draggingTokenId, setDraggingTokenId] = useState(null);
   const fieldRef = useRef(null);
 
-  // Oficina
-  const [refereeCostInput, setRefereeCostInput] = useState(600);
+  // Oficina y Pagos
+  const [playerPayments, setPlayerPayments] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -137,10 +131,7 @@ export default function App() {
     }
 
     const { data: matchesData } = await supabase.from('matches').select('*').order('created_at', { ascending: false });
-    if (matchesData) {
-      setMatches(matchesData);
-      if (matchesData.length > 0) setRefereeCostInput(matchesData[0].referee_cost || 600);
-    }
+    if (matchesData) setMatches(matchesData);
 
     const { data: attendancesData } = await supabase.from('match_attendances').select('*');
     if (attendancesData) setAttendances(attendancesData);
@@ -150,6 +141,14 @@ export default function App() {
 
   const isCaptain = currentUserRole === 'captain';
   const loggedPlayer = !isCaptain && currentUserRole ? players.find((p) => String(p.id) === String(currentUserRole)) : null;
+
+  const nextMatch = matches.find((m) => m.status !== 'finished') || matches[0];
+
+  const confirmedPlayerIds = attendances
+    .filter((a) => nextMatch && String(a.match_id) === String(nextMatch.id) && (a.status === 'confirmed' || a.status === true || a.status === '1'))
+    .map((a) => String(a.player_id));
+
+  const confirmedPlayers = players.filter((p) => confirmedPlayerIds.includes(String(p.id)));
 
   const handleVerifyCaptainPassword = (e) => {
     e.preventDefault();
@@ -187,81 +186,7 @@ export default function App() {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   };
 
-  // Cierre de partido
-  const handleOpenFinishMatchModal = (match) => {
-    setMatchToFinish(match);
-    setFinishGoalsClub(match.goals_club || 0);
-    setFinishGoalsRival(match.goals_rival || 0);
-
-    const initialData = {};
-    players.forEach((p) => {
-      initialData[p.id] = {
-        goals: 0,
-        yellow_cards: 0,
-        red_cards: 0,
-        absences: 0,
-        matchRating: calculateOVR(p),
-      };
-    });
-    setFinishPlayerData(initialData);
-    setShowFinishMatchModal(true);
-  };
-
-  async function handleSaveFinishedMatch(e) {
-    e.preventDefault();
-    if (!matchToFinish) return;
-
-    const { error: matchErr } = await supabase
-      .from('matches')
-      .update({
-        status: 'finished',
-        goals_club: parseInt(finishGoalsClub),
-        goals_rival: parseInt(finishGoalsRival)
-      })
-      .eq('id', matchToFinish.id);
-
-    if (matchErr) {
-      alert('Error al guardar partido: ' + matchErr.message);
-      return;
-    }
-
-    for (const player of players) {
-      const pStats = finishPlayerData[player.id];
-      if (pStats) {
-        const newGoals = (player.goals || 0) + parseInt(pStats.goals || 0);
-        const newYellow = (player.yellow_cards || 0) + parseInt(pStats.yellow_cards || 0);
-        const newRed = (player.red_cards || 0) + parseInt(pStats.red_cards || 0);
-        const newAbsences = (player.absences || 0) + parseInt(pStats.absences || 0);
-
-        const newRating = parseInt(pStats.matchRating || calculateOVR(player));
-        const updatedPace = Math.min(99, Math.max(1, Math.round(((player.pace || 75) + newRating) / 2)));
-        const updatedShooting = Math.min(99, Math.max(1, Math.round(((player.shooting || 75) + newRating) / 2)));
-        const updatedPassing = Math.min(99, Math.max(1, Math.round(((player.passing || 75) + newRating) / 2)));
-        const updatedDribbling = Math.min(99, Math.max(1, Math.round(((player.dribbling || 75) + newRating) / 2)));
-        const updatedTechnique = Math.min(99, Math.max(1, Math.round(((player.technique || 75) + newRating) / 2)));
-
-        await supabase
-          .from('players')
-          .update({
-            goals: newGoals,
-            yellow_cards: newYellow,
-            red_cards: newRed,
-            absences: newAbsences,
-            pace: updatedPace,
-            shooting: updatedShooting,
-            passing: updatedPassing,
-            dribbling: updatedDribbling,
-            technique: updatedTechnique,
-          })
-          .eq('id', player.id);
-      }
-    }
-
-    setShowFinishMatchModal(false);
-    fetchData();
-  }
-
-  // Jugadores
+  // --- ACCIONES JUGADORES ---
   const handleOpenCreatePlayerModal = () => {
     setIsEditingPlayer(false);
     setPlayerForm(estadoInicialJugador);
@@ -345,7 +270,7 @@ export default function App() {
     else setPlayers((prev) => prev.filter((p) => p.id !== id));
   }
 
-  // Partidos
+  // --- ACCIONES PARTIDOS ---
   const handleOpenCreateMatchModal = () => {
     if (!isCaptain) return;
     setIsEditingMatch(false);
@@ -394,7 +319,6 @@ export default function App() {
       else if (data && data.length > 0) {
         setMatches((prev) => prev.map((m) => (m.id === matchForm.id ? data[0] : m)));
         setShowMatchModal(false);
-        setMatchForm(estadoInicialPartido);
       }
     } else {
       const { data, error } = await supabase.from('matches').insert([payload]).select();
@@ -402,7 +326,6 @@ export default function App() {
       else if (data && data.length > 0) {
         setMatches((prev) => [data[0], ...prev]);
         setShowMatchModal(false);
-        setMatchForm(estadoInicialPartido);
       }
     }
   }
@@ -415,7 +338,81 @@ export default function App() {
     else setMatches((prev) => prev.filter((m) => m.id !== id));
   }
 
-  // Asistencias
+  // --- CIERRE DE PARTIDO ---
+  const handleOpenFinishMatchModal = (match) => {
+    setMatchToFinish(match);
+    setFinishGoalsClub(match.goals_club || 0);
+    setFinishGoalsRival(match.goals_rival || 0);
+
+    const initialData = {};
+    players.forEach((p) => {
+      initialData[p.id] = {
+        goals: 0,
+        yellow_cards: 0,
+        red_cards: 0,
+        absences: confirmedPlayerIds.includes(String(p.id)) ? 0 : 1,
+        matchRating: calculateOVR(p),
+      };
+    });
+    setFinishPlayerData(initialData);
+    setShowFinishMatchModal(true);
+  };
+
+  async function handleSaveFinishedMatch(e) {
+    e.preventDefault();
+    if (!matchToFinish) return;
+
+    const { error: matchErr } = await supabase
+      .from('matches')
+      .update({
+        status: 'finished',
+        goals_club: parseInt(finishGoalsClub),
+        goals_rival: parseInt(finishGoalsRival)
+      })
+      .eq('id', matchToFinish.id);
+
+    if (matchErr) {
+      alert('Error al guardar partido: ' + matchErr.message);
+      return;
+    }
+
+    for (const player of players) {
+      const pStats = finishPlayerData[player.id];
+      if (pStats) {
+        const newGoals = (player.goals || 0) + parseInt(pStats.goals || 0);
+        const newYellow = (player.yellow_cards || 0) + parseInt(pStats.yellow_cards || 0);
+        const newRed = (player.red_cards || 0) + parseInt(pStats.red_cards || 0);
+        const newAbsences = (player.absences || 0) + parseInt(pStats.absences || 0);
+
+        const newRating = parseInt(pStats.matchRating || calculateOVR(player));
+        const updatedPace = Math.min(99, Math.max(1, Math.round(((player.pace || 75) + newRating) / 2)));
+        const updatedShooting = Math.min(99, Math.max(1, Math.round(((player.shooting || 75) + newRating) / 2)));
+        const updatedPassing = Math.min(99, Math.max(1, Math.round(((player.passing || 75) + newRating) / 2)));
+        const updatedDribbling = Math.min(99, Math.max(1, Math.round(((player.dribbling || 75) + newRating) / 2)));
+        const updatedTechnique = Math.min(99, Math.max(1, Math.round(((player.technique || 75) + newRating) / 2)));
+
+        await supabase
+          .from('players')
+          .update({
+            goals: newGoals,
+            yellow_cards: newYellow,
+            red_cards: newRed,
+            absences: newAbsences,
+            pace: updatedPace,
+            shooting: updatedShooting,
+            passing: updatedPassing,
+            dribbling: updatedDribbling,
+            technique: updatedTechnique,
+          })
+          .eq('id', player.id);
+      }
+    }
+
+    setShowFinishMatchModal(false);
+    fetchData();
+  }
+
+  // --- ASISTENCIAS ---
   async function handleToggleAttendance(matchId, isConfirming) {
     const targetPlayerId = isCaptain ? selectedPlayerForAttendance : loggedPlayer?.id;
     if (!targetPlayerId) {
@@ -446,7 +443,7 @@ export default function App() {
     }
   }
 
-  // Táctica
+  // --- TÁCTICA ---
   const handleAssignSlotPlayer = (slotKey, playerId) => {
     if (!isCaptain) return;
     setLineupAssigned((prev) => ({ ...prev, [slotKey]: playerId }));
@@ -485,11 +482,19 @@ export default function App() {
     setCustomTokens((prev) => [...prev, newToken]);
   };
 
-  const nextMatch = matches.find((m) => m.status !== 'finished') || matches[0];
+  // --- FINANZAS OFICINA ---
+  const refereeFee = nextMatch ? (nextMatch.referee_cost || 600) : 600;
+  const costPerConfirmedPlayer = confirmedPlayers.length > 0 ? Math.ceil(refereeFee / confirmedPlayers.length) : refereeFee;
+
+  const togglePlayerPayment = (playerId) => {
+    setPlayerPayments((prev) => ({ ...prev, [playerId]: !prev[playerId] }));
+  };
+
+  const totalCollected = confirmedPlayers.filter((p) => playerPayments[p.id]).length * costPerConfirmedPlayer;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans antialiased pb-12 select-none">
-      {/* PANTALLA DE SELECCIÓN DE ACCESO / ROL INICIAL */}
+      {/* PANTALLA DE INGRESO / ROL */}
       {!currentUserRole ? (
         <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
           <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl text-center space-y-6">
@@ -522,7 +527,7 @@ export default function App() {
 
               <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-gray-800"></div>
-                <span className="flex-shrink mx-4 text-[10px] uppercase font-bold text-gray-500">O bien</span>
+                <span className="flex-shrink mx-4 text-[10px] uppercase font-bold text-gray-500">O BIEN</span>
                 <div className="flex-grow border-t border-gray-800"></div>
               </div>
 
@@ -553,14 +558,12 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setCurrentUserRole(null)}
-                className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 font-semibold transition"
-              >
-                Cambiar Rol
-              </button>
-            </div>
+            <button
+              onClick={() => setCurrentUserRole(null)}
+              className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 font-semibold transition"
+            >
+              Cambiar Rol
+            </button>
           </header>
 
           {/* BARRA DE NAVEGACIÓN */}
@@ -571,7 +574,7 @@ export default function App() {
                 { id: 'plantilla', label: 'Plantilla y Stats' },
                 { id: 'partidos', label: 'Partidos' },
                 { id: 'tactica', label: 'Pizarra Táctica' },
-                { id: 'oficina', label: 'Oficina' },
+                { id: 'oficina', label: 'Oficina y Pagos' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -600,7 +603,6 @@ export default function App() {
                 {/* PESTAÑA INICIO */}
                 {activeTab === 'inicio' && (
                   <div className="space-y-6">
-                    {/* PRÓXIMO PARTIDO CARD DESTACADO */}
                     {nextMatch ? (
                       <div className="bg-gradient-to-br from-emerald-950/60 via-gray-900 to-gray-900 border border-emerald-500/30 rounded-3xl p-6 shadow-2xl space-y-4">
                         <div className="flex items-center justify-between">
@@ -617,7 +619,7 @@ export default function App() {
                           <h2 className="text-2xl font-black text-white">vs {nextMatch.rival}</h2>
                         </div>
 
-                        {/* UBICACIÓN CON ENLACE GOOGLE MAPS */}
+                        {/* UBICACIÓN CON ENLACE A GOOGLE MAPS */}
                         <div className="flex items-center justify-between bg-gray-950/60 p-3.5 rounded-2xl border border-gray-800">
                           <div className="flex items-center space-x-2.5">
                             <span className="text-lg">📍</span>
@@ -636,7 +638,7 @@ export default function App() {
                           </a>
                         </div>
 
-                        {/* CONFIRMACIÓN DE ASISTENCIA */}
+                        {/* ASISTENCIA */}
                         <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-3">
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-bold text-gray-300">
@@ -694,15 +696,14 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* RESUMEN RÁPIDO Y ESTADÍSTICAS DEL EQUIPO */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
                         <p className="text-xs text-gray-400 font-bold">Jugadores</p>
                         <p className="text-2xl font-black text-emerald-400">{players.length}</p>
                       </div>
                       <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                        <p className="text-xs text-gray-400 font-bold">Partidos Totales</p>
-                        <p className="text-2xl font-black text-teal-400">{matches.length}</p>
+                        <p className="text-xs text-gray-400 font-bold">Confirmados Próx. Partido</p>
+                        <p className="text-2xl font-black text-teal-400">{confirmedPlayers.length}</p>
                       </div>
                       <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
                         <p className="text-xs text-gray-400 font-bold">Goles del Club</p>
@@ -718,7 +719,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* PESTAÑA PLANTILLA Y ESTADÍSTICAS DE JUGADORES */}
+                {/* PESTAÑA PLANTILLA */}
                 {activeTab === 'plantilla' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -764,21 +765,21 @@ export default function App() {
                               onClick={() => setSelectedPlayerStatsModal(p)}
                               className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg border border-emerald-500/30 font-bold"
                             >
-                              Ver Stats
+                              Stats
                             </button>
                             {isCaptain && (
                               <>
                                 <button
                                   onClick={() => handleOpenEditPlayerModal(p)}
-                                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg border border-gray-700"
+                                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg border border-gray-700 font-bold"
                                 >
                                   Editar
                                 </button>
                                 <button
                                   onClick={() => handleDeletePlayer(p.id, p.name)}
-                                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/30"
+                                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/30 font-bold"
                                 >
-                                  ×
+                                  ✕
                                 </button>
                               </>
                             )}
@@ -789,7 +790,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* PESTAÑA PARTIDOS Y CIERRE */}
+                {/* PESTAÑA PARTIDOS */}
                 {activeTab === 'partidos' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -830,10 +831,15 @@ export default function App() {
                                   📍 {m.location || 'Por definir'}
                                 </a>
                               </div>
-                              {m.status === 'finished' && (
+                              {m.status === 'finished' ? (
                                 <div className="text-right">
                                   <p className="text-xs text-gray-400 uppercase font-bold">Marcador</p>
                                   <p className="text-2xl font-black text-emerald-400">{m.goals_club} - {m.goals_rival}</p>
+                                </div>
+                              ) : (
+                                <div className="text-right">
+                                  <p className="text-xs text-gray-400 uppercase font-bold">Arbitraje</p>
+                                  <p className="text-base font-black text-emerald-400">${m.referee_cost || 600} MXN</p>
                                 </div>
                               )}
                             </div>
@@ -871,17 +877,27 @@ export default function App() {
                   </div>
                 )}
 
-                {/* PESTAÑA PIZARRA TÁCTICA COMPLETA */}
+                {/* PESTAÑA TÁCTICA */}
                 {activeTab === 'tactica' && (
                   <div className="space-y-4">
                     <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 space-y-4">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div>
                           <h2 className="text-lg font-black text-white">Pizarra Táctica Interactiva</h2>
-                          <p className="text-xs text-gray-400">Selecciona una alineación preseteada o arrastra las fichas libremente.</p>
+                          <p className="text-xs text-gray-400">Usa las alineaciones o arrastra jugadores confirmados en la cancha.</p>
                         </div>
 
                         <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => setOnlyConfirmedInBoard(!onlyConfirmedInBoard)}
+                            className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition ${
+                              onlyConfirmedInBoard
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                : 'bg-gray-800 text-gray-400 border-gray-700'
+                            }`}
+                          >
+                            {onlyConfirmedInBoard ? '✓ Mostrar Solo Confirmados' : 'Mostrar Todos'}
+                          </button>
                           <button
                             onClick={() => setUseFreeBoard(!useFreeBoard)}
                             className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition ${
@@ -890,7 +906,7 @@ export default function App() {
                                 : 'bg-gray-800 text-gray-300 border-gray-700'
                             }`}
                           >
-                            {useFreeBoard ? 'Modo Fichas Libres' : 'Modo Formación'}
+                            {useFreeBoard ? 'Modo Fichas' : 'Modo Formación'}
                           </button>
                         </div>
                       </div>
@@ -941,13 +957,11 @@ export default function App() {
                         onTouchEnd={handleMouseUpOrLeave}
                         className="w-full h-[450px] bg-gradient-to-b from-emerald-900/60 to-emerald-950/80 rounded-2xl border-2 border-emerald-500/40 relative overflow-hidden flex items-center justify-center select-none shadow-2xl"
                       >
-                        {/* LÍNEAS DE CANCHA */}
                         <div className="absolute inset-x-0 top-1/2 border-t-2 border-emerald-500/30"></div>
                         <div className="w-32 h-32 border-2 border-emerald-500/30 rounded-full absolute"></div>
                         <div className="w-48 h-20 border-2 border-emerald-500/30 border-t-0 absolute top-0"></div>
                         <div className="w-48 h-20 border-2 border-emerald-500/30 border-b-0 absolute bottom-0"></div>
 
-                        {/* FICHAS LIBRES O PRESETEADAS */}
                         {useFreeBoard ? (
                           customTokens.map((t) => {
                             const assignedP = players.find((p) => String(p.id) === String(t.playerId));
@@ -975,11 +989,28 @@ export default function App() {
                             {/* DELANTEROS */}
                             <div className="flex justify-around items-center">
                               {ESTRUCTURA_FORMACIONES[selectedFormation]?.del.map((pos, i) => (
-                                <div key={`del-${i}`} className="flex flex-col items-center">
+                                <div key={`del-${i}`} className="flex flex-col items-center relative group">
+                                  {isCaptain && (
+                                    <select
+                                      onChange={(e) => handleAssignSlotPlayer(`del_${i}`, e.target.value)}
+                                      className="absolute inset-0 opacity-0 cursor-pointer z-30"
+                                    >
+                                      <option value="">-- Asignar --</option>
+                                      {(onlyConfirmedInBoard ? confirmedPlayers : players).map((p) => (
+                                        <option key={p.id} value={p.id}>#{p.jersey_number} {p.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
                                   <div className="w-9 h-9 rounded-full bg-emerald-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
-                                    {pos}
+                                    {lineupAssigned[`del_${i}`]
+                                      ? `#${players.find((p) => String(p.id) === String(lineupAssigned[`del_${i}`]))?.jersey_number || 10}`
+                                      : pos}
                                   </div>
-                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-emerald-400 mt-1">{pos}</span>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-emerald-400 mt-1">
+                                    {lineupAssigned[`del_${i}`]
+                                      ? players.find((p) => String(p.id) === String(lineupAssigned[`del_${i}`]))?.name
+                                      : pos}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -987,11 +1018,28 @@ export default function App() {
                             {/* MEDIOS */}
                             <div className="flex justify-around items-center">
                               {ESTRUCTURA_FORMACIONES[selectedFormation]?.med.map((pos, i) => (
-                                <div key={`med-${i}`} className="flex flex-col items-center">
+                                <div key={`med-${i}`} className="flex flex-col items-center relative group">
+                                  {isCaptain && (
+                                    <select
+                                      onChange={(e) => handleAssignSlotPlayer(`med_${i}`, e.target.value)}
+                                      className="absolute inset-0 opacity-0 cursor-pointer z-30"
+                                    >
+                                      <option value="">-- Asignar --</option>
+                                      {(onlyConfirmedInBoard ? confirmedPlayers : players).map((p) => (
+                                        <option key={p.id} value={p.id}>#{p.jersey_number} {p.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
                                   <div className="w-9 h-9 rounded-full bg-teal-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
-                                    {pos}
+                                    {lineupAssigned[`med_${i}`]
+                                      ? `#${players.find((p) => String(p.id) === String(lineupAssigned[`med_${i}`]))?.jersey_number || 10}`
+                                      : pos}
                                   </div>
-                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-teal-300 mt-1">{pos}</span>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-teal-300 mt-1">
+                                    {lineupAssigned[`med_${i}`]
+                                      ? players.find((p) => String(p.id) === String(lineupAssigned[`med_${i}`]))?.name
+                                      : pos}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -999,22 +1047,56 @@ export default function App() {
                             {/* DEFENSAS */}
                             <div className="flex justify-around items-center">
                               {ESTRUCTURA_FORMACIONES[selectedFormation]?.def.map((pos, i) => (
-                                <div key={`def-${i}`} className="flex flex-col items-center">
+                                <div key={`def-${i}`} className="flex flex-col items-center relative group">
+                                  {isCaptain && (
+                                    <select
+                                      onChange={(e) => handleAssignSlotPlayer(`def_${i}`, e.target.value)}
+                                      className="absolute inset-0 opacity-0 cursor-pointer z-30"
+                                    >
+                                      <option value="">-- Asignar --</option>
+                                      {(onlyConfirmedInBoard ? confirmedPlayers : players).map((p) => (
+                                        <option key={p.id} value={p.id}>#{p.jersey_number} {p.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
                                   <div className="w-9 h-9 rounded-full bg-blue-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
-                                    {pos}
+                                    {lineupAssigned[`def_${i}`]
+                                      ? `#${players.find((p) => String(p.id) === String(lineupAssigned[`def_${i}`]))?.jersey_number || 10}`
+                                      : pos}
                                   </div>
-                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-blue-300 mt-1">{pos}</span>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-blue-300 mt-1">
+                                    {lineupAssigned[`def_${i}`]
+                                      ? players.find((p) => String(p.id) === String(lineupAssigned[`def_${i}`]))?.name
+                                      : pos}
+                                  </span>
                                 </div>
                               ))}
                             </div>
 
                             {/* PORTERO */}
                             <div className="flex justify-center items-center">
-                              <div className="flex flex-col items-center">
+                              <div className="flex flex-col items-center relative group">
+                                {isCaptain && (
+                                  <select
+                                    onChange={(e) => handleAssignSlotPlayer('por_0', e.target.value)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer z-30"
+                                  >
+                                    <option value="">-- Asignar --</option>
+                                    {(onlyConfirmedInBoard ? confirmedPlayers : players).map((p) => (
+                                      <option key={p.id} value={p.id}>#{p.jersey_number} {p.name}</option>
+                                    ))}
+                                  </select>
+                                )}
                                 <div className="w-9 h-9 rounded-full bg-amber-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
-                                  POR
+                                  {lineupAssigned['por_0']
+                                    ? `#${players.find((p) => String(p.id) === String(lineupAssigned['por_0']))?.jersey_number || 10}`
+                                    : 'POR'}
                                 </div>
-                                <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-amber-300 mt-1">POR</span>
+                                <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-amber-300 mt-1">
+                                  {lineupAssigned['por_0']
+                                    ? players.find((p) => String(p.id) === String(lineupAssigned['por_0']))?.name
+                                    : 'POR'}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1024,14 +1106,75 @@ export default function App() {
                   </div>
                 )}
 
-                {/* PESTAÑA OFICINA */}
+                {/* PESTAÑA OFICINA Y PAGOS */}
                 {activeTab === 'oficina' && (
-                  <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 space-y-4">
-                    <h2 className="text-lg font-black text-white">Oficina y Finanzas</h2>
-                    <p className="text-xs text-gray-400">Control de cuotas arbitrales y aportaciones de los jugadores.</p>
-                    <div className="p-4 bg-gray-950 rounded-xl border border-gray-800">
-                      <p className="text-xs text-gray-400 font-bold">Costo de arbitraje por partido:</p>
-                      <p className="text-2xl font-black text-emerald-400">${refereeCostInput} MXN</p>
+                  <div className="space-y-6">
+                    <div className="bg-gray-900 p-6 rounded-3xl border border-gray-800 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-black text-white">Oficina y Balance del Equipo</h2>
+                          <p className="text-xs text-gray-400">Desglose de cuotas arbitrales según jugadores confirmados.</p>
+                        </div>
+                        <span className="text-xs bg-emerald-500/20 text-emerald-400 font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                          {nextMatch ? `vs ${nextMatch.rival}` : 'Sin partido próximo'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-4 bg-gray-950 rounded-2xl border border-gray-800">
+                          <p className="text-xs text-gray-400 font-bold">Costo del Arbitraje</p>
+                          <p className="text-2xl font-black text-white">${refereeFee} MXN</p>
+                        </div>
+                        <div className="p-4 bg-gray-950 rounded-2xl border border-gray-800">
+                          <p className="text-xs text-gray-400 font-bold">Cuota x Jugador Presente</p>
+                          <p className="text-2xl font-black text-emerald-400">${costPerConfirmedPlayer} MXN</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">Basado en {confirmedPlayers.length} confirmados</p>
+                        </div>
+                        <div className="p-4 bg-gray-950 rounded-2xl border border-gray-800">
+                          <p className="text-xs text-gray-400 font-bold">Total Recaudado</p>
+                          <p className="text-2xl font-black text-teal-400">${totalCollected} /${refereeFee} MXN</p>
+                        </div>
+                      </div>
+
+                      {/* JUGADORES CONFIRMADOS Y PAGOS */}
+                      <div className="space-y-3 pt-2">
+                        <h3 className="font-bold text-sm text-white">Estado de Pagos de Jugadores Confirmados:</h3>
+                        {confirmedPlayers.length === 0 ? (
+                          <p className="text-xs text-gray-400 bg-gray-950 p-4 rounded-xl border border-gray-800">
+                            Aún no hay jugadores que hayan confirmado su asistencia para el próximo partido.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {confirmedPlayers.map((p) => {
+                              const hasPaid = !!playerPayments[p.id];
+                              return (
+                                <div key={p.id} className="bg-gray-950 p-3 rounded-2xl border border-gray-800 flex items-center justify-between">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-xs font-black text-emerald-400">
+                                      #{p.jersey_number || 10}
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-bold text-white">{p.name}</p>
+                                      <p className="text-[10px] text-gray-400">Cuota: ${costPerConfirmedPlayer} MXN</p>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    onClick={() => togglePlayerPayment(p.id)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition ${
+                                      hasPaid
+                                        ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    {hasPaid ? '✓ Pagado' : 'Pendiente'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1039,6 +1182,184 @@ export default function App() {
             )}
           </main>
         </>
+      )}
+
+      {/* MODAL JUGADOR (CREAR / EDITAR) */}
+      {showPlayerModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <form onSubmit={handleSavePlayer} className="bg-gray-900 border border-gray-800 rounded-3xl p-6 max-w-md w-full space-y-4 my-8">
+            <h3 className="font-black text-lg text-white">{isEditingPlayer ? 'Editar Jugador' : 'Nuevo Jugador'}</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={playerForm.name}
+                  onChange={(e) => setPlayerForm({ ...playerForm, name: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Número Dorsal</label>
+                  <input
+                    type="number"
+                    value={playerForm.jersey_number}
+                    onChange={(e) => setPlayerForm({ ...playerForm, jersey_number: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Posición</label>
+                  <select
+                    value={playerForm.position_primary}
+                    onChange={(e) => setPlayerForm({ ...playerForm, position_primary: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                  >
+                    <option value="POR">Portero (POR)</option>
+                    <option value="DFC">Defensa Central (DFC)</option>
+                    <option value="LD">Lateral Derecho (LD)</option>
+                    <option value="LI">Lateral Izquierdo (LI)</option>
+                    <option value="MC">Medio Centro (MC)</option>
+                    <option value="MCO">Medio Ofensivo (MCO)</option>
+                    <option value="DC">Delantero Centro (DC)</option>
+                    <option value="EXI">Extremo Izquierdo (EXI)</option>
+                    <option value="EXD">Extremo Derecho (EXD)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Edad</label>
+                  <input
+                    type="number"
+                    value={playerForm.age}
+                    onChange={(e) => setPlayerForm({ ...playerForm, age: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Altura (m)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={playerForm.height}
+                    onChange={(e) => setPlayerForm({ ...playerForm, height: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Peso (kg)</label>
+                  <input
+                    type="number"
+                    value={playerForm.weight}
+                    onChange={(e) => setPlayerForm({ ...playerForm, weight: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-2 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPlayerModal(false)}
+                className="w-1/2 bg-gray-800 text-gray-300 py-2.5 rounded-xl text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 bg-emerald-500 text-black py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL PARTIDO (CREAR / EDITAR) */}
+      {showMatchModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSaveMatch} className="bg-gray-900 border border-gray-800 rounded-3xl p-6 max-w-md w-full space-y-4">
+            <h3 className="font-black text-lg text-white">{isEditingMatch ? 'Editar Partido' : 'Nuevo Partido'}</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Rival</label>
+                <input
+                  type="text"
+                  required
+                  value={matchForm.rival}
+                  onChange={(e) => setMatchForm({ ...matchForm, rival: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Fecha</label>
+                  <input
+                    type="date"
+                    value={matchForm.match_date}
+                    onChange={(e) => setMatchForm({ ...matchForm, match_date: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Hora</label>
+                  <input
+                    type="time"
+                    value={matchForm.match_time}
+                    onChange={(e) => setMatchForm({ ...matchForm, match_time: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Cancha / Ubicación (Google Maps)</label>
+                <input
+                  type="text"
+                  value={matchForm.location}
+                  onChange={(e) => setMatchForm({ ...matchForm, location: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Costo Arbitraje ($ MXN)</label>
+                <input
+                  type="number"
+                  value={matchForm.referee_cost}
+                  onChange={(e) => setMatchForm({ ...matchForm, referee_cost: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowMatchModal(false)}
+                className="w-1/2 bg-gray-800 text-gray-300 py-2.5 rounded-xl text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 bg-emerald-500 text-black py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20"
+              >
+                Guardar Partido
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* MODAL VER STATS DE JUGADOR */}
@@ -1060,7 +1381,7 @@ export default function App() {
               <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">⚽ Goles: <span className="text-emerald-400 font-black">{selectedPlayerStatsModal.goals || 0}</span></div>
               <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">🟨 Amarillas: <span className="text-amber-400 font-black">{selectedPlayerStatsModal.yellow_cards || 0}</span></div>
               <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">🟥 Rojas: <span className="text-red-400 font-black">{selectedPlayerStatsModal.red_cards || 0}</span></div>
-              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">❌ Faltas: <span className="text-gray-400 font-black">{selectedPlayerStatsModal.absences || 0}</span></div>
+              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">❌ Ausencias: <span className="text-gray-400 font-black">{selectedPlayerStatsModal.absences || 0}</span></div>
             </div>
 
             <div className="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1.5 text-xs text-gray-400 font-medium">
@@ -1140,10 +1461,15 @@ export default function App() {
             </div>
 
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-              <p className="text-xs font-bold text-gray-300">Estadísticas por Jugador:</p>
+              <p className="text-xs font-bold text-gray-300">Rendimiento por Jugador:</p>
               {players.map((p) => (
                 <div key={p.id} className="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-2">
-                  <p className="text-xs font-bold text-white">#{p.jersey_number} {p.name}</p>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs font-bold text-white">#{p.jersey_number} {p.name}</p>
+                    <span className="text-[10px] text-emerald-400 font-bold">
+                      {confirmedPlayerIds.includes(String(p.id)) ? '✓ Asistió' : '✕ Ausente'}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-4 gap-2">
                     <div>
                       <span className="text-[9px] text-gray-400">Goles</span>
@@ -1176,13 +1502,14 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <span className="text-[9px] text-gray-400">Falta</span>
+                      <span className="text-[9px] text-gray-400">Rating</span>
                       <input
                         type="number"
-                        min="0"
-                        value={finishPlayerData[p.id]?.absences || 0}
-                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], absences: e.target.value } })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-white"
+                        min="1"
+                        max="99"
+                        value={finishPlayerData[p.id]?.matchRating || calculateOVR(p)}
+                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], matchRating: e.target.value } })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-emerald-400 font-bold"
                       />
                     </div>
                   </div>
