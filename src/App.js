@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Inicialización directa con tus credenciales
+// Inicialización de Supabase
 const supabaseUrl = 'https://leefqaybpzrvogrvvxky.supabase.co';
 const supabaseAnonKey = 'sb_publishable_7jAJjRt4I_zZs32LaByU2g_Vt7HY6PI';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -55,14 +55,14 @@ const estadoInicialPartido = {
 };
 
 const ESTRUCTURA_FORMACIONES = {
-  'fut7-1321': { def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC'], del: ['DC'] },
-  'fut7-1231': { def: ['LI', 'LD'], med: ['MI', 'MC', 'MD'], del: ['DC'] },
-  'fut9-1332': { def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['DC', 'DC'] },
-  'fut9-1341': { def: ['LI', 'DFC', 'LD'], med: ['MI', 'MC', 'MC', 'MD'], del: ['DC'] },
-  'fut10-1333': { def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['EXI', 'DC', 'EXD'] },
-  'fut10-1432': { def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['DC', 'DC'] },
-  'fut11-1442': { def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MI', 'MC', 'MC', 'MD'], del: ['DC', 'DC'] },
-  'fut11-1433': { def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['EXI', 'DC', 'EXD'] },
+  'fut7-1321': { name: 'Fut 7 (1-3-2-1)', def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC'], del: ['DC'] },
+  'fut7-1231': { name: 'Fut 7 (1-2-3-1)', def: ['LI', 'LD'], med: ['MI', 'MC', 'MD'], del: ['DC'] },
+  'fut9-1332': { name: 'Fut 9 (1-3-3-2)', def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['DC', 'DC'] },
+  'fut9-1341': { name: 'Fut 9 (1-3-4-1)', def: ['LI', 'DFC', 'LD'], med: ['MI', 'MC', 'MC', 'MD'], del: ['DC'] },
+  'fut10-1333': { name: 'Fut 10 (1-3-3-3)', def: ['LI', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['EXI', 'DC', 'EXD'] },
+  'fut10-1432': { name: 'Fut 10 (1-4-3-2)', def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['DC', 'DC'] },
+  'fut11-1442': { name: 'Fut 11 (1-4-4-2)', def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MI', 'MC', 'MC', 'MD'], del: ['DC', 'DC'] },
+  'fut11-1433': { name: 'Fut 11 (1-4-3-3)', def: ['LI', 'DFC', 'DFC', 'LD'], med: ['MC', 'MC', 'MCO'], del: ['EXI', 'DC', 'EXD'] },
 };
 
 const fichasInicialesLibres = [
@@ -80,7 +80,7 @@ const fichasInicialesLibres = [
 ];
 
 export default function App() {
-  const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState(null); // 'captain' | player_id | null
   const [activeTab, setActiveTab] = useState('inicio');
   const [club, setClub] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -95,6 +95,7 @@ export default function App() {
   const [isEditingMatch, setIsEditingMatch] = useState(false);
   const [showCaptainPasswordModal, setShowCaptainPasswordModal] = useState(false);
   const [captainPasswordInput, setCaptainPasswordInput] = useState('');
+  const [selectedPlayerStatsModal, setSelectedPlayerStatsModal] = useState(null);
 
   // Modal Cierre de Partido
   const [showFinishMatchModal, setShowFinishMatchModal] = useState(false);
@@ -109,18 +110,16 @@ export default function App() {
   const [selectedPlayerForAttendance, setSelectedPlayerForAttendance] = useState('');
   
   // Táctica
-  const [selectedMatchForTactics, setSelectedMatchForTactics] = useState('');
   const [selectedFormation, setSelectedFormation] = useState('fut7-1321');
-  const [newCustomCategory, setNewCustomCategory] = useState('MED');
+  const [useFreeBoard, setUseFreeBoard] = useState(false);
   const [lineupAssigned, setLineupAssigned] = useState({});
   const [customTokens, setCustomTokens] = useState(fichasInicialesLibres);
+  const [newCustomCategory, setNewCustomCategory] = useState('MED');
   const [draggingTokenId, setDraggingTokenId] = useState(null);
   const fieldRef = useRef(null);
 
   // Oficina
-  const [selectedMatchForOffice, setSelectedMatchForOffice] = useState('');
   const [refereeCostInput, setRefereeCostInput] = useState(600);
-  const [paymentsState, setPaymentsState] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -140,11 +139,7 @@ export default function App() {
     const { data: matchesData } = await supabase.from('matches').select('*').order('created_at', { ascending: false });
     if (matchesData) {
       setMatches(matchesData);
-      if (matchesData.length > 0) {
-        setSelectedMatchForTactics(matchesData[0].id);
-        setSelectedMatchForOffice(matchesData[0].id);
-        setRefereeCostInput(matchesData[0].referee_cost || 600);
-      }
+      if (matchesData.length > 0) setRefereeCostInput(matchesData[0].referee_cost || 600);
     }
 
     const { data: attendancesData } = await supabase.from('match_attendances').select('*');
@@ -156,7 +151,6 @@ export default function App() {
   const isCaptain = currentUserRole === 'captain';
   const loggedPlayer = !isCaptain && currentUserRole ? players.find((p) => String(p.id) === String(currentUserRole)) : null;
 
-  // Validación de Contraseña de Capitán
   const handleVerifyCaptainPassword = (e) => {
     e.preventDefault();
     if (captainPasswordInput === 'RealBetis10') {
@@ -188,21 +182,12 @@ export default function App() {
 
   const calculateOVR = (p) => Math.round(((p.pace || 75) + (p.shooting || 75) + (p.passing || 75) + (p.dribbling || 75) + (p.technique || 75)) / 5);
 
-  const isStatusConfirmed = (status) => {
-    if (status === true || status === 1 || status === '1') return true;
-    if (!status) return false;
-    const s = String(status).toLowerCase();
-    return s.includes('confirm') || s.includes('presente') || s === 'si' || s === 'true';
+  const getGoogleMapsUrl = (location) => {
+    if (!location) return 'https://maps.google.com';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   };
 
-  const isStatusDeclined = (status) => {
-    if (status === false || status === 0 || status === '0') return true;
-    if (!status) return false;
-    const s = String(status).toLowerCase();
-    return s.includes('declin') || s.includes('rechaz') || s.includes('ausente') || s === 'no' || s === 'false';
-  };
-
-  // CIERRE DE PARTIDO
+  // Cierre de partido
   const handleOpenFinishMatchModal = (match) => {
     setMatchToFinish(match);
     setFinishGoalsClub(match.goals_club || 0);
@@ -276,7 +261,7 @@ export default function App() {
     fetchData();
   }
 
-  // JUGADORES
+  // Jugadores
   const handleOpenCreatePlayerModal = () => {
     setIsEditingPlayer(false);
     setPlayerForm(estadoInicialJugador);
@@ -313,39 +298,27 @@ export default function App() {
     e.preventDefault();
     if (!playerForm.name.trim()) return;
 
-    let payload;
-    if (isCaptain) {
-      payload = {
-        name: playerForm.name,
-        jersey_number: parseInt(playerForm.jersey_number) || 10,
-        position_primary: playerForm.position_primary,
-        position_secondary: playerForm.position_secondary || null,
-        foot: playerForm.foot,
-        club_id: club ? club.id : null,
-        age: parseInt(playerForm.age),
-        height: parseFloat(playerForm.height),
-        weight: parseFloat(playerForm.weight),
-        is_captain: playerForm.is_captain,
-        pace: parseInt(playerForm.pace),
-        shooting: parseInt(playerForm.shooting),
-        passing: parseInt(playerForm.passing),
-        dribbling: parseInt(playerForm.dribbling),
-        technique: parseInt(playerForm.technique),
-        goals: parseInt(playerForm.goals || 0),
-        yellow_cards: parseInt(playerForm.yellow_cards || 0),
-        red_cards: parseInt(playerForm.red_cards || 0),
-        absences: parseInt(playerForm.absences || 0),
-      };
-    } else {
-      payload = {
-        name: playerForm.name,
-        jersey_number: parseInt(playerForm.jersey_number) || 10,
-        age: parseInt(playerForm.age),
-        position_primary: playerForm.position_primary,
-        position_secondary: playerForm.position_secondary || null,
-        foot: playerForm.foot,
-      };
-    }
+    let payload = {
+      name: playerForm.name,
+      jersey_number: parseInt(playerForm.jersey_number) || 10,
+      position_primary: playerForm.position_primary,
+      position_secondary: playerForm.position_secondary || null,
+      foot: playerForm.foot,
+      club_id: club ? club.id : null,
+      age: parseInt(playerForm.age),
+      height: parseFloat(playerForm.height),
+      weight: parseFloat(playerForm.weight),
+      is_captain: playerForm.is_captain,
+      pace: parseInt(playerForm.pace),
+      shooting: parseInt(playerForm.shooting),
+      passing: parseInt(playerForm.passing),
+      dribbling: parseInt(playerForm.dribbling),
+      technique: parseInt(playerForm.technique),
+      goals: parseInt(playerForm.goals || 0),
+      yellow_cards: parseInt(playerForm.yellow_cards || 0),
+      red_cards: parseInt(playerForm.red_cards || 0),
+      absences: parseInt(playerForm.absences || 0),
+    };
 
     if (isEditingPlayer) {
       const { data, error } = await supabase.from('players').update(payload).eq('id', playerForm.id).select();
@@ -354,7 +327,7 @@ export default function App() {
         setPlayers((prev) => prev.map((p) => (p.id === playerForm.id ? data[0] : p)));
         setShowPlayerModal(false);
       }
-    } else if (isCaptain) {
+    } else {
       const { data, error } = await supabase.from('players').insert([payload]).select();
       if (error) alert('Error: ' + error.message);
       else if (data && data.length > 0) {
@@ -372,7 +345,7 @@ export default function App() {
     else setPlayers((prev) => prev.filter((p) => p.id !== id));
   }
 
-  // PARTIDOS
+  // Partidos
   const handleOpenCreateMatchModal = () => {
     if (!isCaptain) return;
     setIsEditingMatch(false);
@@ -430,8 +403,6 @@ export default function App() {
         setMatches((prev) => [data[0], ...prev]);
         setShowMatchModal(false);
         setMatchForm(estadoInicialPartido);
-        if (!selectedMatchForTactics) setSelectedMatchForTactics(data[0].id);
-        if (!selectedMatchForOffice) setSelectedMatchForOffice(data[0].id);
       }
     }
   }
@@ -444,15 +415,17 @@ export default function App() {
     else setMatches((prev) => prev.filter((m) => m.id !== id));
   }
 
+  // Asistencias
   async function handleToggleAttendance(matchId, isConfirming) {
     const targetPlayerId = isCaptain ? selectedPlayerForAttendance : loggedPlayer?.id;
     if (!targetPlayerId) {
-      alert('Selecciona o identifica un jugador.');
+      alert('Selecciona o identifica tu jugador.');
       return;
     }
     const statusVal = isConfirming ? 'confirmed' : 'declined';
-    const existingIndex = attendances.findIndex((a) => a.match_id === matchId && a.player_id === targetPlayerId);
+    const existingIndex = attendances.findIndex((a) => String(a.match_id) === String(matchId) && String(a.player_id) === String(targetPlayerId));
     let updatedAttendances = [...attendances];
+    
     if (existingIndex >= 0) {
       updatedAttendances[existingIndex] = { ...updatedAttendances[existingIndex], status: statusVal };
     } else {
@@ -460,7 +433,7 @@ export default function App() {
     }
     setAttendances(updatedAttendances);
 
-    const existing = attendances.find((a) => a.match_id === matchId && a.player_id === targetPlayerId);
+    const existing = attendances.find((a) => String(a.match_id) === String(matchId) && String(a.player_id) === String(targetPlayerId));
     let res;
     if (existing && !String(existing.id).startsWith('temp-')) {
       res = await supabase.from('match_attendances').update({ status: statusVal }).eq('id', existing.id).select();
@@ -469,24 +442,16 @@ export default function App() {
     }
     if (res.data && res.data.length > 0) {
       const saved = res.data[0];
-      setAttendances((prev) => prev.map((a) => (a.match_id === matchId && a.player_id === targetPlayerId ? saved : a)));
+      setAttendances((prev) => prev.map((a) => (String(a.match_id) === String(matchId) && String(a.player_id) === String(targetPlayerId) ? saved : a)));
     }
   }
 
+  // Táctica
   const handleAssignSlotPlayer = (slotKey, playerId) => {
     if (!isCaptain) return;
     setLineupAssigned((prev) => ({ ...prev, [slotKey]: playerId }));
   };
 
-  const handleSlotPosChange = (slotKey, newPos) => {
-    if (!isCaptain) return;
-    setLineupAssigned((prev) => ({
-      ...prev,
-      [`pos_${slotKey}`]: newPos
-    }));
-  };
-
-  // Arrastre Táctica
   const handleTouchOrMouseDown = (tokenId) => {
     if (!isCaptain) return;
     setDraggingTokenId(tokenId);
@@ -520,361 +485,610 @@ export default function App() {
     setCustomTokens((prev) => [...prev, newToken]);
   };
 
-  const handleRemoveCustomToken = (tokenId) => {
-    if (!isCaptain) return;
-    setCustomTokens((prev) => prev.filter((t) => t.id !== tokenId));
-  };
-
-  const handleUpdateCustomTokenPlayer = (tokenId, playerId) => {
-    if (!isCaptain) return;
-    setCustomTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, playerId } : t)));
-  };
-
-  const handleChangeCustomTokenPos = (tokenId, newPos) => {
-    if (!isCaptain) return;
-    let cat = 'MED';
-    if (newPos === 'POR') cat = 'POR';
-    else if (POSICIONES_POR_CATEGORIA.DEF.includes(newPos)) cat = 'DEF';
-    else if (POSICIONES_POR_CATEGORIA.MED.includes(newPos)) cat = 'MED';
-    else if (POSICIONES_POR_CATEGORIA.DEL.includes(newPos)) cat = 'DEL';
-
-    setCustomTokens((prev) =>
-      prev.map((t) => (t.id === tokenId ? { ...t, posLabel: newPos, category: cat } : t))
-    );
-  };
-
-  const renderDynamicSlot = (slotKey, defaultPos, categoryKey) => {
-    const currentPos = lineupAssigned[`pos_${slotKey}`] || defaultPos;
-    const assignedPlayerId = lineupAssigned[slotKey] || '';
-    const assignedPlayer = players.find((p) => String(p.id) === String(assignedPlayerId));
-    const allowedOptions = POSICIONES_POR_CATEGORIA[categoryKey] || POSICIONES_POR_CATEGORIA.MED;
-
-    return (
-      <div key={slotKey} className="flex flex-col items-center relative group">
-        {isCaptain && (
-          <select
-            value={assignedPlayerId}
-            onChange={(e) => handleAssignSlotPlayer(slotKey, e.target.value)}
-            className="absolute inset-x-0 top-6 w-full h-10 opacity-0 cursor-pointer z-30"
-          >
-            <option value="" className="bg-gray-900 text-gray-400">-- Sin asignar --</option>
-            {players.map((p) => (
-              <option key={p.id} value={p.id} className="bg-gray-900 text-white font-bold">
-                #{p.jersey_number || 10} {p.name} ({p.position_primary})
-              </option>
-            ))}
-          </select>
-        )}
-
-        {isCaptain ? (
-          <select
-            value={currentPos}
-            onChange={(e) => handleSlotPosChange(slotKey, e.target.value)}
-            title="Cambiar posición"
-            className="bg-black/80 text-emerald-400 font-extrabold text-[9px] px-1.5 py-0.5 rounded border border-emerald-500/50 mb-1 z-20 cursor-pointer"
-          >
-            {allowedOptions.map((opt) => (
-              <option key={opt} value={opt} className="bg-gray-900 text-white">{opt}</option>
-            ))}
-          </select>
-        ) : (
-          <span className="bg-black/80 text-emerald-400 font-extrabold text-[9px] px-1.5 py-0.5 rounded border border-emerald-500/50 mb-1">
-            {currentPos}
-          </span>
-        )}
-
-        <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center font-black text-xs shadow-xl transition-all ${
-          assignedPlayer ? 'bg-emerald-500 border-white text-black scale-105' : 'bg-gray-900/90 border-emerald-500/60 text-emerald-400'
-        }`}>
-          {assignedPlayer ? `#${assignedPlayer.jersey_number || 10}` : currentPos}
-        </div>
-
-        <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-gray-200 mt-1">
-          {assignedPlayer ? assignedPlayer.name : 'Vacío'}
-        </span>
-      </div>
-    );
-  };
+  const nextMatch = matches.find((m) => m.status !== 'finished') || matches[0];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white font-sans antialiased pb-12">
-      {/* HEADER PRINCIPAL */}
-      <header className="bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-black shadow-lg shadow-emerald-500/20">
-            PG
-          </div>
-          <div>
-            <h1 className="font-extrabold text-base tracking-tight leading-none text-white">
-              {club ? club.name : 'PlayGame'}
-            </h1>
-            <p className="text-[10px] text-gray-400 font-medium tracking-wide uppercase mt-0.5">
-              {currentUserRole === 'captain' ? 'Modo Capitán' : loggedPlayer ? `Jugador: ${loggedPlayer.name}` : 'Modo Espectador'}
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-950 text-white font-sans antialiased pb-12 select-none">
+      {/* PANTALLA DE SELECCIÓN DE ACCESO / ROL INICIAL */}
+      {!currentUserRole ? (
+        <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
+          <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl text-center space-y-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-2xl text-black mx-auto shadow-lg shadow-emerald-500/20">
+              PG
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white">PlayGame</h1>
+              <p className="text-xs text-gray-400 mt-1">Selecciona tu perfil para ingresar al panel del equipo</p>
+            </div>
 
-        <div className="flex items-center space-x-2">
-          {currentUserRole === 'captain' ? (
-            <button
-              onClick={() => setCurrentUserRole(null)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 font-semibold transition"
-            >
-              Salir Capitán
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowCaptainPasswordModal(true)}
-              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 font-semibold transition"
-            >
-              Acceso Capitán
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* NAVEGACIÓN PRINCIPAL */}
-      <nav className="bg-gray-900 border-b border-gray-800 px-4 py-2 overflow-x-auto">
-        <div className="flex space-x-2 min-w-max">
-          {[
-            { id: 'inicio', label: 'Inicio' },
-            { id: 'plantilla', label: 'Plantilla' },
-            { id: 'partidos', label: 'Partidos' },
-            { id: 'tactica', label: 'Pizarra Táctica' },
-            { id: 'oficina', label: 'Oficina' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${
-                activeTab === tab.id
-                  ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
-                  : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* CONTENIDO PRINCIPAL SEGÚN PESTAÑA */}
-      <main className="max-w-4xl mx-auto px-4 pt-6">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p className="text-xs font-semibold">Cargando datos de PlayGame...</p>
-          </div>
-        ) : (
-          <>
-            {/* PESTAÑA INICIO */}
-            {activeTab === 'inicio' && (
-              <div className="space-y-6">
-                <div className="bg-gradient-to-r from-emerald-900/40 to-teal-900/20 border border-emerald-500/30 rounded-2xl p-6">
-                  <h2 className="text-xl font-black text-white mb-1">¡Bienvenido a PlayGame!</h2>
-                  <p className="text-xs text-gray-300">
-                    Administra tu club amateur, controla asistencias, arma tus alineaciones tácticas y gestiona los pagos del equipo.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                    <p className="text-xs text-gray-400">Jugadores</p>
-                    <p className="text-2xl font-black text-emerald-400">{players.length}</p>
-                  </div>
-                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                    <p className="text-xs text-gray-400">Partidos</p>
-                    <p className="text-2xl font-black text-teal-400">{matches.length}</p>
-                  </div>
-                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                    <p className="text-xs text-gray-400">Capitán</p>
-                    <p className="text-sm font-bold text-white mt-1">{isCaptain ? 'Activo' : 'No'}</p>
-                  </div>
-                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                    <p className="text-xs text-gray-400">Estado Liga</p>
-                    <p className="text-sm font-bold text-emerald-400 mt-1">En Competencia</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PESTAÑA PLANTILLA */}
-            {activeTab === 'plantilla' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-black text-white">Jugadores del Club</h2>
-                  {isCaptain && (
-                    <button
-                      onClick={handleOpenCreatePlayerModal}
-                      className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
-                    >
-                      + Nuevo Jugador
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-4 pt-2">
+              <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 text-left space-y-2">
+                <label className="text-xs font-bold text-gray-300 block">Soy Jugador:</label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) setCurrentUserRole(e.target.value);
+                  }}
+                  defaultValue=""
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-emerald-400 font-bold focus:outline-none"
+                >
+                  <option value="" disabled>-- Elige tu nombre --</option>
                   {players.map((p) => (
-                    <div key={p.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-800 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400">
-                          #{p.jersey_number || 10}
+                    <option key={p.id} value={p.id}>
+                      #{p.jersey_number || 10} {p.name} ({p.position_primary})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-800"></div>
+                <span className="flex-shrink mx-4 text-[10px] uppercase font-bold text-gray-500">O bien</span>
+                <div className="flex-grow border-t border-gray-800"></div>
+              </div>
+
+              <button
+                onClick={() => setShowCaptainPasswordModal(true)}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-3 rounded-2xl shadow-lg shadow-emerald-500/20 transition text-sm"
+              >
+                Soy Capitán (Ingresar Clave)
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* HEADER PRINCIPAL */}
+          <header className="bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-black shadow-lg shadow-emerald-500/20">
+                PG
+              </div>
+              <div>
+                <h1 className="font-extrabold text-base tracking-tight leading-none text-white">
+                  {club ? club.name : 'PlayGame'}
+                </h1>
+                <p className="text-[10px] text-gray-400 font-medium tracking-wide uppercase mt-0.5">
+                  {isCaptain ? 'Modo Capitán' : loggedPlayer ? `Jugador: ${loggedPlayer.name}` : 'Espectador'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentUserRole(null)}
+                className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 font-semibold transition"
+              >
+                Cambiar Rol
+              </button>
+            </div>
+          </header>
+
+          {/* BARRA DE NAVEGACIÓN */}
+          <nav className="bg-gray-900 border-b border-gray-800 px-4 py-2 overflow-x-auto">
+            <div className="flex space-x-2 min-w-max">
+              {[
+                { id: 'inicio', label: 'Inicio' },
+                { id: 'plantilla', label: 'Plantilla y Stats' },
+                { id: 'partidos', label: 'Partidos' },
+                { id: 'tactica', label: 'Pizarra Táctica' },
+                { id: 'oficina', label: 'Oficina' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                      : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* CONTENIDO PRINCIPAL */}
+          <main className="max-w-4xl mx-auto px-4 pt-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p className="text-xs font-semibold">Cargando datos de PlayGame...</p>
+              </div>
+            ) : (
+              <>
+                {/* PESTAÑA INICIO */}
+                {activeTab === 'inicio' && (
+                  <div className="space-y-6">
+                    {/* PRÓXIMO PARTIDO CARD DESTACADO */}
+                    {nextMatch ? (
+                      <div className="bg-gradient-to-br from-emerald-950/60 via-gray-900 to-gray-900 border border-emerald-500/30 rounded-3xl p-6 shadow-2xl space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
+                            Próximo Partido
+                          </span>
+                          <span className="text-xs text-gray-400 font-bold">
+                            {formatMatchDateTime(nextMatch.match_date).dateStr} • {formatMatchDateTime(nextMatch.match_date).timeStr} hrs
+                          </span>
                         </div>
+
                         <div>
-                          <h3 className="font-bold text-sm text-white">{p.name}</h3>
-                          <p className="text-xs text-gray-400">{p.position_primary} • OVR {calculateOVR(p)}</p>
+                          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Rival</p>
+                          <h2 className="text-2xl font-black text-white">vs {nextMatch.rival}</h2>
+                        </div>
+
+                        {/* UBICACIÓN CON ENLACE GOOGLE MAPS */}
+                        <div className="flex items-center justify-between bg-gray-950/60 p-3.5 rounded-2xl border border-gray-800">
+                          <div className="flex items-center space-x-2.5">
+                            <span className="text-lg">📍</span>
+                            <div>
+                              <p className="text-[10px] text-gray-400 uppercase font-bold">Cancha / Ubicación</p>
+                              <p className="text-xs font-bold text-white">{nextMatch.location || 'Por definir'}</p>
+                            </div>
+                          </div>
+                          <a
+                            href={getGoogleMapsUrl(nextMatch.location)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-xl border border-emerald-500/30 font-bold transition flex items-center space-x-1"
+                          >
+                            <span>Abrir Maps 🗺️</span>
+                          </a>
+                        </div>
+
+                        {/* CONFIRMACIÓN DE ASISTENCIA */}
+                        <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-300">
+                              {isCaptain ? 'Confirmación para Jugador Seleccionado:' : `Confirmar Asistencia (${loggedPlayer?.name || 'Jugador'}):`}
+                            </p>
+                            {isCaptain && (
+                              <select
+                                value={selectedPlayerForAttendance}
+                                onChange={(e) => setSelectedPlayerForAttendance(e.target.value)}
+                                className="bg-gray-900 border border-gray-700 text-xs text-emerald-400 font-bold px-2 py-1 rounded-lg"
+                              >
+                                {players.map((p) => (
+                                  <option key={p.id} value={p.id}>#{p.jersey_number} {p.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          {(() => {
+                            const activePlayerId = isCaptain ? selectedPlayerForAttendance : loggedPlayer?.id;
+                            const att = attendances.find((a) => String(a.match_id) === String(nextMatch.id) && String(a.player_id) === String(activePlayerId));
+                            const isConfirmed = att?.status === 'confirmed';
+                            const isDeclined = att?.status === 'declined';
+
+                            return (
+                              <div className="flex space-x-3">
+                                <button
+                                  onClick={() => handleToggleAttendance(nextMatch.id, true)}
+                                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition ${
+                                    isConfirmed
+                                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/30'
+                                      : 'bg-gray-900 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {isConfirmed ? '✓ Asistencia Confirmada' : 'Confirmar Asistencia'}
+                                </button>
+                                <button
+                                  onClick={() => handleToggleAttendance(nextMatch.id, false)}
+                                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition ${
+                                    isDeclined
+                                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                                      : 'bg-gray-900 hover:bg-red-500/20 text-red-400 border border-red-500/30'
+                                  }`}
+                                >
+                                  {isDeclined ? '✕ Ausencia Declarada' : 'Declinar'}
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleOpenEditPlayerModal(p)}
-                          className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg border border-gray-700"
-                        >
-                          Editar
-                        </button>
-                        {isCaptain && (
-                          <button
-                            onClick={() => handleDeletePlayer(p.id, p.name)}
-                            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/30"
-                          >
-                            ×
-                          </button>
-                        )}
+                    ) : (
+                      <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 text-center text-gray-400 text-xs">
+                        No hay partidos agendados próximamente.
+                      </div>
+                    )}
+
+                    {/* RESUMEN RÁPIDO Y ESTADÍSTICAS DEL EQUIPO */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                        <p className="text-xs text-gray-400 font-bold">Jugadores</p>
+                        <p className="text-2xl font-black text-emerald-400">{players.length}</p>
+                      </div>
+                      <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                        <p className="text-xs text-gray-400 font-bold">Partidos Totales</p>
+                        <p className="text-2xl font-black text-teal-400">{matches.length}</p>
+                      </div>
+                      <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                        <p className="text-xs text-gray-400 font-bold">Goles del Club</p>
+                        <p className="text-2xl font-black text-emerald-400">
+                          {players.reduce((sum, p) => sum + (p.goals || 0), 0)}
+                        </p>
+                      </div>
+                      <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                        <p className="text-xs text-gray-400 font-bold">Tu Rol</p>
+                        <p className="text-sm font-bold text-white mt-1">{isCaptain ? 'Capitán' : loggedPlayer ? 'Jugador' : 'Espectador'}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
 
-            {/* PESTAÑA PARTIDOS */}
-            {activeTab === 'partidos' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-black text-white">Calendario de Partidos</h2>
-                  {isCaptain && (
-                    <button
-                      onClick={handleOpenCreateMatchModal}
-                      className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
-                    >
-                      + Agendar Partido
-                    </button>
-                  )}
-                </div>
+                {/* PESTAÑA PLANTILLA Y ESTADÍSTICAS DE JUGADORES */}
+                {activeTab === 'plantilla' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-black text-white">Plantilla de Jugadores</h2>
+                      {isCaptain && (
+                        <button
+                          onClick={handleOpenCreatePlayerModal}
+                          className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
+                        >
+                          + Nuevo Jugador
+                        </button>
+                      )}
+                    </div>
 
-                <div className="space-y-3">
-                  {matches.map((m) => {
-                    const { dateStr, timeStr } = formatMatchDateTime(m.match_date);
-                    return (
-                      <div key={m.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {players.map((p) => (
+                        <div
+                          key={p.id}
+                          className="bg-gray-900 p-4 rounded-2xl border border-gray-800 hover:border-gray-700 transition flex items-center justify-between cursor-pointer"
+                          onClick={() => setSelectedPlayerStatsModal(p)}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex flex-col items-center justify-center">
+                              <span className="font-black text-xs text-emerald-400">#{p.jersey_number || 10}</span>
+                              <span className="text-[8px] font-black text-gray-400">OVR {calculateOVR(p)}</span>
+                            </div>
+                            <div>
+                              <h3 className="font-extrabold text-sm text-white flex items-center space-x-1">
+                                <span>{p.name}</span>
+                                {p.is_captain && <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1 rounded">C</span>}
+                              </h3>
+                              <p className="text-xs text-gray-400">{p.position_primary} • {p.foot} • {p.age || 25} años</p>
+                              <div className="flex space-x-2 text-[10px] text-gray-300 font-bold mt-1">
+                                <span className="text-emerald-400">⚽ {p.goals || 0} Goles</span>
+                                <span className="text-amber-400">🟨 {p.yellow_cards || 0}</span>
+                                <span className="text-red-400">🟥 {p.red_cards || 0}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setSelectedPlayerStatsModal(p)}
+                              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg border border-emerald-500/30 font-bold"
+                            >
+                              Ver Stats
+                            </button>
+                            {isCaptain && (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditPlayerModal(p)}
+                                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg border border-gray-700"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePlayer(p.id, p.name)}
+                                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/30"
+                                >
+                                  ×
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PESTAÑA PARTIDOS Y CIERRE */}
+                {activeTab === 'partidos' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-black text-white">Calendario de Partidos</h2>
+                      {isCaptain && (
+                        <button
+                          onClick={handleOpenCreateMatchModal}
+                          className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
+                        >
+                          + Agendar Partido
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      {matches.map((m) => {
+                        const { dateStr, timeStr } = formatMatchDateTime(m.match_date);
+                        return (
+                          <div key={m.id} className="bg-gray-900 p-5 rounded-2xl border border-gray-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                                m.status === 'finished' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                              }`}>
+                                {m.status === 'finished' ? 'Finalizado' : 'Programado'}
+                              </span>
+                              <span className="text-xs text-gray-400 font-bold">{dateStr} • {timeStr} hrs</span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-black text-lg text-white">vs {m.rival}</h3>
+                                <a
+                                  href={getGoogleMapsUrl(m.location)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-emerald-400 hover:underline font-bold"
+                                >
+                                  📍 {m.location || 'Por definir'}
+                                </a>
+                              </div>
+                              {m.status === 'finished' && (
+                                <div className="text-right">
+                                  <p className="text-xs text-gray-400 uppercase font-bold">Marcador</p>
+                                  <p className="text-2xl font-black text-emerald-400">{m.goals_club} - {m.goals_rival}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-800/60">
+                              {m.status !== 'finished' && isCaptain && (
+                                <button
+                                  onClick={() => handleOpenFinishMatchModal(m)}
+                                  className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs px-3 py-1.5 rounded-xl font-black shadow-md shadow-emerald-500/20"
+                                >
+                                  Cerrar Partido y Registrar Stats
+                                </button>
+                              )}
+                              {isCaptain && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditMatchModal(m)}
+                                    className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-xl border border-gray-700 font-bold"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteMatch(m.id, m.rival)}
+                                    className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/30 font-bold"
+                                  >
+                                    ✕
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* PESTAÑA PIZARRA TÁCTICA COMPLETA */}
+                {activeTab === 'tactica' && (
+                  <div className="space-y-4">
+                    <div className="bg-gray-900 p-5 rounded-2xl border border-gray-800 space-y-4">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-emerald-400 px-2 py-0.5 rounded">
-                            {m.status === 'finished' ? 'Finalizado' : 'Programado'}
-                          </span>
-                          <h3 className="font-black text-base text-white mt-1">vs {m.rival}</h3>
-                          <p className="text-xs text-gray-400">{dateStr} a las {timeStr} hrs • {m.location}</p>
+                          <h2 className="text-lg font-black text-white">Pizarra Táctica Interactiva</h2>
+                          <p className="text-xs text-gray-400">Selecciona una alineación preseteada o arrastra las fichas libremente.</p>
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          {m.status !== 'finished' && isCaptain && (
-                            <button
-                              onClick={() => handleOpenFinishMatchModal(m)}
-                              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold"
-                            >
-                              Cerrar Partido
-                            </button>
-                          )}
-                          {isCaptain && (
-                            <>
-                              <button
-                                onClick={() => handleOpenEditMatchModal(m)}
-                                className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1.5 rounded-lg border border-gray-700"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteMatch(m.id, m.rival)}
-                                className="bg-red-500/10 text-red-400 text-xs px-2 py-1.5 rounded-lg border border-red-500/30"
-                              >
-                                ×
-                              </button>
-                            </>
-                          )}
+                          <button
+                            onClick={() => setUseFreeBoard(!useFreeBoard)}
+                            className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition ${
+                              useFreeBoard
+                                ? 'bg-emerald-500 text-black border-emerald-400'
+                                : 'bg-gray-800 text-gray-300 border-gray-700'
+                            }`}
+                          >
+                            {useFreeBoard ? 'Modo Fichas Libres' : 'Modo Formación'}
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {/* PESTAÑA TÁCTICA */}
-            {activeTab === 'tactica' && (
-              <div className="space-y-4">
-                <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
-                  <h2 className="text-lg font-black text-white mb-2">Pizarra Táctica interactiva</h2>
-                  <p className="text-xs text-gray-400 mb-4">Alinea a tu equipo y ajusta las posiciones arrastrando o seleccionando fichas.</p>
-                  
-                  <div
-                    ref={fieldRef}
-                    onMouseMove={handleFieldMouseMove}
-                    onTouchMove={handleFieldMouseMove}
-                    onMouseUp={handleMouseUpOrLeave}
-                    onTouchEnd={handleMouseUpOrLeave}
-                    className="w-full h-96 bg-emerald-800/40 rounded-2xl border-2 border-emerald-500/40 relative overflow-hidden flex items-center justify-center select-none"
-                  >
-                    <div className="absolute inset-x-0 top-1/2 border-t-2 border-emerald-500/30"></div>
-                    <div className="w-28 h-28 border-2 border-emerald-500/30 rounded-full absolute"></div>
-                    
-                    {customTokens.map((t) => {
-                      const assignedP = players.find((p) => String(p.id) === String(t.playerId));
-                      return (
-                        <div
-                          key={t.id}
-                          onMouseDown={() => handleTouchOrMouseDown(t.id)}
-                          onTouchStart={() => handleTouchOrMouseDown(t.id)}
-                          style={{ top: `${t.top}%`, left: `${t.left}%` }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing flex flex-col items-center"
-                        >
-                          <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs ${
-                            assignedP ? 'bg-emerald-400 border-white text-black' : 'bg-gray-900 border-emerald-400 text-emerald-400'
-                          }`}>
-                            {assignedP ? `#${assignedP.jersey_number || 10}` : t.posLabel}
-                          </div>
-                          <span className="text-[9px] bg-black/80 text-white px-1 rounded mt-0.5 whitespace-nowrap">
-                            {assignedP ? assignedP.name : t.posLabel}
-                          </span>
+                      {!useFreeBoard ? (
+                        <div className="flex items-center space-x-2 bg-gray-950 p-3 rounded-xl border border-gray-800">
+                          <label className="text-xs font-bold text-gray-300">Alineación:</label>
+                          <select
+                            value={selectedFormation}
+                            onChange={(e) => setSelectedFormation(e.target.value)}
+                            className="bg-gray-900 border border-gray-700 text-xs text-emerald-400 font-bold px-3 py-1.5 rounded-lg focus:outline-none"
+                          >
+                            {Object.entries(ESTRUCTURA_FORMACIONES).map(([key, val]) => (
+                              <option key={key} value={key}>{val.name}</option>
+                            ))}
+                          </select>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+                      ) : (
+                        isCaptain && (
+                          <div className="flex items-center space-x-2 bg-gray-950 p-3 rounded-xl border border-gray-800">
+                            <span className="text-xs font-bold text-gray-300">Agregar posición:</span>
+                            <select
+                              value={newCustomCategory}
+                              onChange={(e) => setNewCustomCategory(e.target.value)}
+                              className="bg-gray-900 border border-gray-700 text-xs text-white px-2 py-1 rounded-lg"
+                            >
+                              <option value="POR">Portero</option>
+                              <option value="DEF">Defensa</option>
+                              <option value="MED">Medio</option>
+                              <option value="DEL">Delantero</option>
+                            </select>
+                            <button
+                              onClick={handleAddCustomToken}
+                              className="bg-emerald-500 text-black text-xs px-3 py-1 rounded-lg font-bold"
+                            >
+                              + Agregar
+                            </button>
+                          </div>
+                        )
+                      )}
 
-            {/* PESTAÑA OFICINA */}
-            {activeTab === 'oficina' && (
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 space-y-4">
-                <h2 className="text-lg font-black text-white">Administración y Finanzas</h2>
-                <p className="text-xs text-gray-400">Control de cuotas arbitrales y aportaciones de los jugadores.</p>
-                <div className="p-4 bg-gray-950 rounded-xl border border-gray-800">
-                  <p className="text-xs text-gray-400">Costo promedio de arbitraje:</p>
-                  <p className="text-xl font-black text-emerald-400">${refereeCostInput} MXN</p>
-                </div>
-              </div>
+                      {/* CANCHA DE FÚTBOL */}
+                      <div
+                        ref={fieldRef}
+                        onMouseMove={handleFieldMouseMove}
+                        onTouchMove={handleFieldMouseMove}
+                        onMouseUp={handleMouseUpOrLeave}
+                        onTouchEnd={handleMouseUpOrLeave}
+                        className="w-full h-[450px] bg-gradient-to-b from-emerald-900/60 to-emerald-950/80 rounded-2xl border-2 border-emerald-500/40 relative overflow-hidden flex items-center justify-center select-none shadow-2xl"
+                      >
+                        {/* LÍNEAS DE CANCHA */}
+                        <div className="absolute inset-x-0 top-1/2 border-t-2 border-emerald-500/30"></div>
+                        <div className="w-32 h-32 border-2 border-emerald-500/30 rounded-full absolute"></div>
+                        <div className="w-48 h-20 border-2 border-emerald-500/30 border-t-0 absolute top-0"></div>
+                        <div className="w-48 h-20 border-2 border-emerald-500/30 border-b-0 absolute bottom-0"></div>
+
+                        {/* FICHAS LIBRES O PRESETEADAS */}
+                        {useFreeBoard ? (
+                          customTokens.map((t) => {
+                            const assignedP = players.find((p) => String(p.id) === String(t.playerId));
+                            return (
+                              <div
+                                key={t.id}
+                                onMouseDown={() => handleTouchOrMouseDown(t.id)}
+                                onTouchStart={() => handleTouchOrMouseDown(t.id)}
+                                style={{ top: `${t.top}%`, left: `${t.left}%` }}
+                                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing flex flex-col items-center"
+                              >
+                                <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-xs shadow-xl ${
+                                  assignedP ? 'bg-emerald-400 border-white text-black' : 'bg-gray-900 border-emerald-400 text-emerald-400'
+                                }`}>
+                                  {assignedP ? `#${assignedP.jersey_number || 10}` : t.posLabel}
+                                </div>
+                                <span className="text-[9px] font-bold bg-black/90 text-white px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap border border-gray-800">
+                                  {assignedP ? assignedP.name : t.posLabel}
+                                </span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                            {/* DELANTEROS */}
+                            <div className="flex justify-around items-center">
+                              {ESTRUCTURA_FORMACIONES[selectedFormation]?.del.map((pos, i) => (
+                                <div key={`del-${i}`} className="flex flex-col items-center">
+                                  <div className="w-9 h-9 rounded-full bg-emerald-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
+                                    {pos}
+                                  </div>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-emerald-400 mt-1">{pos}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* MEDIOS */}
+                            <div className="flex justify-around items-center">
+                              {ESTRUCTURA_FORMACIONES[selectedFormation]?.med.map((pos, i) => (
+                                <div key={`med-${i}`} className="flex flex-col items-center">
+                                  <div className="w-9 h-9 rounded-full bg-teal-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
+                                    {pos}
+                                  </div>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-teal-300 mt-1">{pos}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* DEFENSAS */}
+                            <div className="flex justify-around items-center">
+                              {ESTRUCTURA_FORMACIONES[selectedFormation]?.def.map((pos, i) => (
+                                <div key={`def-${i}`} className="flex flex-col items-center">
+                                  <div className="w-9 h-9 rounded-full bg-blue-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
+                                    {pos}
+                                  </div>
+                                  <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-blue-300 mt-1">{pos}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* PORTERO */}
+                            <div className="flex justify-center items-center">
+                              <div className="flex flex-col items-center">
+                                <div className="w-9 h-9 rounded-full bg-amber-500 border-2 border-white text-black font-black flex items-center justify-center text-xs shadow-lg">
+                                  POR
+                                </div>
+                                <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-amber-300 mt-1">POR</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* PESTAÑA OFICINA */}
+                {activeTab === 'oficina' && (
+                  <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 space-y-4">
+                    <h2 className="text-lg font-black text-white">Oficina y Finanzas</h2>
+                    <p className="text-xs text-gray-400">Control de cuotas arbitrales y aportaciones de los jugadores.</p>
+                    <div className="p-4 bg-gray-950 rounded-xl border border-gray-800">
+                      <p className="text-xs text-gray-400 font-bold">Costo de arbitraje por partido:</p>
+                      <p className="text-2xl font-black text-emerald-400">${refereeCostInput} MXN</p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </main>
+          </main>
+        </>
+      )}
+
+      {/* MODAL VER STATS DE JUGADOR */}
+      {selectedPlayerStatsModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div>
+                <h3 className="font-black text-lg text-white">{selectedPlayerStatsModal.name}</h3>
+                <p className="text-xs text-emerald-400 font-bold">#{selectedPlayerStatsModal.jersey_number || 10} • {selectedPlayerStatsModal.position_primary}</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col items-center justify-center font-black text-emerald-400 text-sm">
+                <span>OVR</span>
+                <span>{calculateOVR(selectedPlayerStatsModal)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
+              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">⚽ Goles: <span className="text-emerald-400 font-black">{selectedPlayerStatsModal.goals || 0}</span></div>
+              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">🟨 Amarillas: <span className="text-amber-400 font-black">{selectedPlayerStatsModal.yellow_cards || 0}</span></div>
+              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">🟥 Rojas: <span className="text-red-400 font-black">{selectedPlayerStatsModal.red_cards || 0}</span></div>
+              <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">❌ Faltas: <span className="text-gray-400 font-black">{selectedPlayerStatsModal.absences || 0}</span></div>
+            </div>
+
+            <div className="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1.5 text-xs text-gray-400 font-medium">
+              <div className="flex justify-between"><span>Ritmo (PAC):</span><span className="text-white font-bold">{selectedPlayerStatsModal.pace || 75}</span></div>
+              <div className="flex justify-between"><span>Tiro (SHO):</span><span className="text-white font-bold">{selectedPlayerStatsModal.shooting || 75}</span></div>
+              <div className="flex justify-between"><span>Pase (PAS):</span><span className="text-white font-bold">{selectedPlayerStatsModal.passing || 75}</span></div>
+              <div className="flex justify-between"><span>Regate (DRI):</span><span className="text-white font-bold">{selectedPlayerStatsModal.dribbling || 75}</span></div>
+              <div className="flex justify-between"><span>Técnica (TEC):</span><span className="text-white font-bold">{selectedPlayerStatsModal.technique || 75}</span></div>
+            </div>
+
+            <button
+              onClick={() => setSelectedPlayerStatsModal(null)}
+              className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-xs"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL CONTRASEÑA CAPITÁN */}
       {showCaptainPasswordModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form onSubmit={handleVerifyCaptainPassword} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-xs w-full space-y-4">
-            <h3 className="font-extrabold text-base text-white">Ingresa como Capitán</h3>
+            <h3 className="font-extrabold text-base text-white">Clave de Capitán</h3>
             <input
               type="password"
-              placeholder="Contraseña"
+              placeholder="Ingresa la contraseña"
               value={captainPasswordInput}
               onChange={(e) => setCaptainPasswordInput(e.target.value)}
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
@@ -892,6 +1106,103 @@ export default function App() {
                 className="w-1/2 bg-emerald-500 text-black py-2 rounded-xl text-xs font-bold"
               >
                 Entrar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL CIERRE DE PARTIDO */}
+      {showFinishMatchModal && matchToFinish && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <form onSubmit={handleSaveFinishedMatch} className="bg-gray-900 border border-gray-800 rounded-3xl p-6 max-w-md w-full space-y-4 my-8">
+            <h3 className="font-black text-lg text-white">Cerrar Partido vs {matchToFinish.rival}</h3>
+            
+            <div className="grid grid-cols-2 gap-3 bg-gray-950 p-3 rounded-2xl border border-gray-800">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Goles Club</label>
+                <input
+                  type="number"
+                  value={finishGoalsClub}
+                  onChange={(e) => setFinishGoalsClub(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-emerald-400 font-black mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Goles Rival</label>
+                <input
+                  type="number"
+                  value={finishGoalsRival}
+                  onChange={(e) => setFinishGoalsRival(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-red-400 font-black mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              <p className="text-xs font-bold text-gray-300">Estadísticas por Jugador:</p>
+              {players.map((p) => (
+                <div key={p.id} className="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-2">
+                  <p className="text-xs font-bold text-white">#{p.jersey_number} {p.name}</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <span className="text-[9px] text-gray-400">Goles</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={finishPlayerData[p.id]?.goals || 0}
+                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], goals: e.target.value } })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-gray-400">🟨</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={finishPlayerData[p.id]?.yellow_cards || 0}
+                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], yellow_cards: e.target.value } })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-gray-400">🟥</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={finishPlayerData[p.id]?.red_cards || 0}
+                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], red_cards: e.target.value } })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-gray-400">Falta</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={finishPlayerData[p.id]?.absences || 0}
+                        onChange={(e) => setFinishPlayerData({ ...finishPlayerData, [p.id]: { ...finishPlayerData[p.id], absences: e.target.value } })}
+                        className="w-full bg-gray-900 border border-gray-700 rounded text-center text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowFinishMatchModal(false)}
+                className="w-1/2 bg-gray-800 text-gray-300 py-2.5 rounded-xl text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 bg-emerald-500 text-black py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20"
+              >
+                Guardar Cierre
               </button>
             </div>
           </form>
