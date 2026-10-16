@@ -597,9 +597,306 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
-      <h1 className="text-2xl font-black text-emerald-400 mb-2">PlayGame - Panel Principal</h1>
-      <p className="text-sm text-gray-400">Aplicación de fútbol para jugadores amateurs configurada correctamente.</p>
+    <div className="min-h-screen bg-gray-950 text-white font-sans antialiased pb-12">
+      {/* HEADER PRINCIPAL */}
+      <header className="bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-black shadow-lg shadow-emerald-500/20">
+            PG
+          </div>
+          <div>
+            <h1 className="font-extrabold text-base tracking-tight leading-none text-white">
+              {club ? club.name : 'PlayGame'}
+            </h1>
+            <p className="text-[10px] text-gray-400 font-medium tracking-wide uppercase mt-0.5">
+              {currentUserRole === 'captain' ? 'Modo Capitán' : loggedPlayer ? `Jugador: ${loggedPlayer.name}` : 'Modo Espectador'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {currentUserRole === 'captain' ? (
+            <button
+              onClick={() => setCurrentUserRole(null)}
+              className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700 font-semibold transition"
+            >
+              Salir Capitán
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowCaptainPasswordModal(true)}
+              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 font-semibold transition"
+            >
+              Acceso Capitán
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* NAVEGACIÓN PRINCIPAL */}
+      <nav className="bg-gray-900 border-b border-gray-800 px-4 py-2 overflow-x-auto">
+        <div className="flex space-x-2 min-w-max">
+          {[
+            { id: 'inicio', label: 'Inicio' },
+            { id: 'plantilla', label: 'Plantilla' },
+            { id: 'partidos', label: 'Partidos' },
+            { id: 'tactica', label: 'Pizarra Táctica' },
+            { id: 'oficina', label: 'Oficina' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${
+                activeTab === tab.id
+                  ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                  : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* CONTENIDO PRINCIPAL SEGÚN PESTAÑA */}
+      <main className="max-w-4xl mx-auto px-4 pt-6">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-xs font-semibold">Cargando datos de PlayGame...</p>
+          </div>
+        ) : (
+          <>
+            {/* PESTAÑA INICIO */}
+            {activeTab === 'inicio' && (
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-emerald-900/40 to-teal-900/20 border border-emerald-500/30 rounded-2xl p-6">
+                  <h2 className="text-xl font-black text-white mb-1">¡Bienvenido a PlayGame!</h2>
+                  <p className="text-xs text-gray-300">
+                    Administra tu club amateur, controla asistencias, arma tus alineaciones tácticas y gestiona los pagos del equipo.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                    <p className="text-xs text-gray-400">Jugadores</p>
+                    <p className="text-2xl font-black text-emerald-400">{players.length}</p>
+                  </div>
+                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                    <p className="text-xs text-gray-400">Partidos</p>
+                    <p className="text-2xl font-black text-teal-400">{matches.length}</p>
+                  </div>
+                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                    <p className="text-xs text-gray-400">Capitán</p>
+                    <p className="text-sm font-bold text-white mt-1">{isCaptain ? 'Activo' : 'No'}</p>
+                  </div>
+                  <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                    <p className="text-xs text-gray-400">Estado Liga</p>
+                    <p className="text-sm font-bold text-emerald-400 mt-1">En Competencia</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PESTAÑA PLANTILLA */}
+            {activeTab === 'plantilla' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-black text-white">Jugadores del Club</h2>
+                  {isCaptain && (
+                    <button
+                      onClick={handleOpenCreatePlayerModal}
+                      className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
+                    >
+                      + Nuevo Jugador
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {players.map((p) => (
+                    <div key={p.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-800 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400">
+                          #{p.jersey_number || 10}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm text-white">{p.name}</h3>
+                          <p className="text-xs text-gray-400">{p.position_primary} • OVR {calculateOVR(p)}</p>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleOpenEditPlayerModal(p)}
+                          className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg border border-gray-700"
+                        >
+                          Editar
+                        </button>
+                        {isCaptain && (
+                          <button
+                            onClick={() => handleDeletePlayer(p.id, p.name)}
+                            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/30"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* PESTAÑA PARTIDOS */}
+            {activeTab === 'partidos' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-black text-white">Calendario de Partidos</h2>
+                  {isCaptain && (
+                    <button
+                      onClick={handleOpenCreateMatchModal}
+                      className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-emerald-400 transition"
+                    >
+                      + Agendar Partido
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {matches.map((m) => {
+                    const { dateStr, timeStr } = formatMatchDateTime(m.match_date);
+                    return (
+                      <div key={m.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-emerald-400 px-2 py-0.5 rounded">
+                            {m.status === 'finished' ? 'Finalizado' : 'Programado'}
+                          </span>
+                          <h3 className="font-black text-base text-white mt-1">vs {m.rival}</h3>
+                          <p className="text-xs text-gray-400">{dateStr} a las {timeStr} hrs • {m.location}</p>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          {m.status !== 'finished' && isCaptain && (
+                            <button
+                              onClick={() => handleOpenFinishMatchModal(m)}
+                              className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold"
+                            >
+                              Cerrar Partido
+                            </button>
+                          )}
+                          {isCaptain && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditMatchModal(m)}
+                                className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-2.5 py-1.5 rounded-lg border border-gray-700"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteMatch(m.id, m.rival)}
+                                className="bg-red-500/10 text-red-400 text-xs px-2 py-1.5 rounded-lg border border-red-500/30"
+                              >
+                                ×
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* PESTAÑA TÁCTICA */}
+            {activeTab === 'tactica' && (
+              <div className="space-y-4">
+                <div className="bg-gray-900 p-4 rounded-2xl border border-gray-800">
+                  <h2 className="text-lg font-black text-white mb-2">Pizarra Táctica interactiva</h2>
+                  <p className="text-xs text-gray-400 mb-4">Alinea a tu equipo y ajusta las posiciones arrastrando o seleccionando fichas.</p>
+                  
+                  <div
+                    ref={fieldRef}
+                    onMouseMove={handleFieldMouseMove}
+                    onTouchMove={handleFieldMouseMove}
+                    onMouseUp={handleMouseUpOrLeave}
+                    onTouchEnd={handleMouseUpOrLeave}
+                    className="w-full h-96 bg-emerald-800/40 rounded-2xl border-2 border-emerald-500/40 relative overflow-hidden flex items-center justify-center select-none"
+                  >
+                    <div className="absolute inset-x-0 top-1/2 border-t-2 border-emerald-500/30"></div>
+                    <div className="w-28 h-28 border-2 border-emerald-500/30 rounded-full absolute"></div>
+                    
+                    {customTokens.map((t) => {
+                      const assignedP = players.find((p) => String(p.id) === String(t.playerId));
+                      return (
+                        <div
+                          key={t.id}
+                          onMouseDown={() => handleTouchOrMouseDown(t.id)}
+                          onTouchStart={() => handleTouchOrMouseDown(t.id)}
+                          style={{ top: `${t.top}%`, left: `${t.left}%` }}
+                          className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing flex flex-col items-center"
+                        >
+                          <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs ${
+                            assignedP ? 'bg-emerald-400 border-white text-black' : 'bg-gray-900 border-emerald-400 text-emerald-400'
+                          }`}>
+                            {assignedP ? `#${assignedP.jersey_number || 10}` : t.posLabel}
+                          </div>
+                          <span className="text-[9px] bg-black/80 text-white px-1 rounded mt-0.5 whitespace-nowrap">
+                            {assignedP ? assignedP.name : t.posLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PESTAÑA OFICINA */}
+            {activeTab === 'oficina' && (
+              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 space-y-4">
+                <h2 className="text-lg font-black text-white">Administración y Finanzas</h2>
+                <p className="text-xs text-gray-400">Control de cuotas arbitrales y aportaciones de los jugadores.</p>
+                <div className="p-4 bg-gray-950 rounded-xl border border-gray-800">
+                  <p className="text-xs text-gray-400">Costo promedio de arbitraje:</p>
+                  <p className="text-xl font-black text-emerald-400">${refereeCostInput} MXN</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* MODAL CONTRASEÑA CAPITÁN */}
+      {showCaptainPasswordModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleVerifyCaptainPassword} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-xs w-full space-y-4">
+            <h3 className="font-extrabold text-base text-white">Ingresa como Capitán</h3>
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={captainPasswordInput}
+              onChange={(e) => setCaptainPasswordInput(e.target.value)}
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+            />
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowCaptainPasswordModal(false)}
+                className="w-1/2 bg-gray-800 text-gray-300 py-2 rounded-xl text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 bg-emerald-500 text-black py-2 rounded-xl text-xs font-bold"
+              >
+                Entrar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
