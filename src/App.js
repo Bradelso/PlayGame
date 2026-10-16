@@ -590,10 +590,17 @@ export default function App() {
         </div>
 
         <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-gray-200 mt-1">
-        {assignedPlayer ? assignedPlayer.name : 'Vacío'}
-      </span>
+          {assignedPlayer ? assignedPlayer.name : 'Vacío'}
+        </span>
+      </div>
+    );
+  };
 
-</div>
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+      <h1 className="text-2xl font-black text-emerald-400 mb-2">PlayGame - Panel Principal</h1>
+      <p className="text-sm text-gray-400">Aplicación de fútbol para jugadores amateurs configurada correctamente.</p>
+    </div>
   );
 }
 
