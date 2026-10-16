@@ -589,4 +589,6 @@ export default function App() {
           {assignedPlayer ? `#${assignedPlayer.jersey_number || 10}` : currentPos}
         </div>
 
-        <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-gray-200 mt-1
+        <span className="text-[9px] font-bold bg-black/80 px-1.5 py-0.5 rounded text-gray-200 mt-1">
+        {assignedPlayer ? assignedPlayer.name : 'Vacío'}
+      </span>
